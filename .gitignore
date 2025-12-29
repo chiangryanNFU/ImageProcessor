@@ -82,3 +82,6 @@ ImageProcessor
 .rcc/
 .uic/
 /build*/
+
+# Test files
+test_image.png
