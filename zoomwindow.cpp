@@ -1,7 +1,7 @@
 #include "zoomwindow.h"
 #include <QFileDialog>
 #include <QMessageBox>
-#include <QHBoxLayout>
+#include <QVBoxLayout>
 
 ZoomWindow::ZoomWindow(const QImage &image, double zoomRatio, QWidget *parent)
     : QWidget(parent), originalImage(image), brushMode(false), isDrawing(false),
@@ -88,8 +88,9 @@ void ZoomWindow::mousePressEvent(QMouseEvent *event)
 {
     if (brushMode && event->button() == Qt::LeftButton)
     {
-        // Get position relative to image label
-        QPoint pos = imageLabel->mapFrom(this, event->pos());
+        // Get position relative to image label using global coordinates
+        QPoint globalPos = mapToGlobal(event->pos());
+        QPoint pos = imageLabel->mapFromGlobal(globalPos);
         
         // Check if click is within image bounds
         if (pos.x() >= 0 && pos.x() < displayImage.width() &&
@@ -105,8 +106,9 @@ void ZoomWindow::mouseMoveEvent(QMouseEvent *event)
 {
     if (brushMode && isDrawing)
     {
-        // Get position relative to image label
-        QPoint pos = imageLabel->mapFrom(this, event->pos());
+        // Get position relative to image label using global coordinates
+        QPoint globalPos = mapToGlobal(event->pos());
+        QPoint pos = imageLabel->mapFromGlobal(globalPos);
         
         // Check if position is within image bounds
         if (pos.x() >= 0 && pos.x() < displayImage.width() &&

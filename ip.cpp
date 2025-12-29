@@ -185,8 +185,10 @@ void IP::mousePressEvent(QMouseEvent *event)
         if (!img.isNull())
         {
             QPoint pos = event->pos();
-            if (pos.x() >= 0 && pos.x() < imgWin->width() &&
-                pos.y() >= 0 && pos.y() < imgWin->height())
+            // Map to image coordinates considering imgWin position
+            QPoint imgPos = imgWin->mapFrom(this, pos);
+            if (imgPos.x() >= 0 && imgPos.x() < img.width() &&
+                imgPos.y() >= 0 && imgPos.y() < img.height())
             {
                 isSelecting = true;
                 selectionStart = pos;
@@ -223,18 +225,22 @@ void IP::mouseReleaseEvent(QMouseEvent *event)
         isSelecting = false;
         selectionEnd = event->pos();
         
+        // Map positions to image coordinates
+        QPoint imgStart = imgWin->mapFrom(this, selectionStart);
+        QPoint imgEnd = imgWin->mapFrom(this, selectionEnd);
+        
         // Calculate selection rectangle
-        int x = qMin(selectionStart.x(), selectionEnd.x());
-        int y = qMin(selectionStart.y(), selectionEnd.y());
-        int width = qAbs(selectionEnd.x() - selectionStart.x());
-        int height = qAbs(selectionEnd.y() - selectionStart.y());
+        int x = qMin(imgStart.x(), imgEnd.x());
+        int y = qMin(imgStart.y(), imgEnd.y());
+        int width = qAbs(imgEnd.x() - imgStart.x());
+        int height = qAbs(imgEnd.y() - imgStart.y());
         
         // Only proceed if selection has meaningful size
         if (width > 10 && height > 10 && !img.isNull())
         {
             // Ensure selection is within image bounds
-            x = qMax(0, qMin(x, img.width() - 1));
-            y = qMax(0, qMin(y, img.height() - 1));
+            x = qMax(0, qMin(x, img.width()));
+            y = qMax(0, qMin(y, img.height()));
             width = qMin(width, img.width() - x);
             height = qMin(height, img.height() - y);
             
