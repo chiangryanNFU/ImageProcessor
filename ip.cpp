@@ -3,9 +3,12 @@
 #include <QMenuBar>
 #include <QFileDialog>
 #include <QDebug>
+#include <QPainter>
+#include <QInputDialog>
+#include <QMessageBox>
 
 IP::IP(QWidget *parent)
-    : QMainWindow(parent)
+    : QMainWindow(parent), isSelecting(false), zoomRatio(2.0)
 {
     setWindowTitle(QStringLiteral("影像處理"));
     central = new QWidget();
@@ -63,6 +66,10 @@ void IP::createActions()
     geometryAction -> setStatusTip(QStringLiteral("影像幾何變換"));
     connect(geometryAction, SIGNAL(triggered()), this, SLOT(showGeometryTransform()));
     connect(exitAction, SIGNAL(triggered()), gWin, SLOT(close()));
+    
+    setZoomRatioAction = new QAction(QStringLiteral("設定放大倍率"), this);
+    setZoomRatioAction->setStatusTip(QStringLiteral("設定區域放大倍率"));
+    connect(setZoomRatioAction, SIGNAL(triggered()), this, SLOT(setZoomRatio()));
 }
 void IP::createMenus()
 {
@@ -74,6 +81,7 @@ void IP::createMenus()
     zoomMenu = menuBar()->addMenu(QStringLiteral("工具"));
     zoomMenu->addAction(zoomInAction);
     zoomMenu->addAction(zoomOutAction);
+    zoomMenu->addAction(setZoomRatioAction);
 }
 void IP::createToolBars()
 {
@@ -84,6 +92,7 @@ void IP::createToolBars()
     zoomTool = addToolBar("zoom");
     zoomTool->addAction(zoomInAction);
     zoomTool->addAction(zoomOutAction);
+    zoomTool->addAction(setZoomRatioAction);
 }
 void IP::loadFile(QString filename)
 {
@@ -154,6 +163,13 @@ void IP::mouseMoveEvent(QMouseEvent *event)
         str += (" = " + QString::number(gray));
     }
     MousePosLabel->setText(str);
+    
+    // Handle region selection
+    if (isSelecting)
+    {
+        selectionEnd = event->pos();
+        update(); // Trigger repaint to show selection rectangle
+    }
 }
 
 void IP::mousePressEvent(QMouseEvent *event)
@@ -164,6 +180,19 @@ void IP::mousePressEvent(QMouseEvent *event)
     if(event->button() == Qt::LeftButton)
     {
         statusLabel->setText(QStringLiteral("左鍵:") + str);
+        
+        // Start region selection if image is loaded and click is within image bounds
+        if (!img.isNull())
+        {
+            QPoint pos = event->pos();
+            if (pos.x() >= 0 && pos.x() < imgWin->width() &&
+                pos.y() >= 0 && pos.y() < imgWin->height())
+            {
+                isSelecting = true;
+                selectionStart = pos;
+                selectionEnd = pos;
+            }
+        }
     }
     else if(event->button() == Qt::RightButton)
     {
@@ -187,4 +216,76 @@ void IP::mouseReleaseEvent(QMouseEvent *event)
     QString str = "(" + QString::number(event->x()) + "," +
                   QString::number(event->y()) + ")";
     statusLabel->setText(QStringLiteral("釋放:") + str);
+    
+    // Handle region selection completion
+    if (isSelecting && event->button() == Qt::LeftButton)
+    {
+        isSelecting = false;
+        selectionEnd = event->pos();
+        
+        // Calculate selection rectangle
+        int x = qMin(selectionStart.x(), selectionEnd.x());
+        int y = qMin(selectionStart.y(), selectionEnd.y());
+        int width = qAbs(selectionEnd.x() - selectionStart.x());
+        int height = qAbs(selectionEnd.y() - selectionStart.y());
+        
+        // Only proceed if selection has meaningful size
+        if (width > 10 && height > 10 && !img.isNull())
+        {
+            // Ensure selection is within image bounds
+            x = qMax(0, qMin(x, img.width() - 1));
+            y = qMax(0, qMin(y, img.height() - 1));
+            width = qMin(width, img.width() - x);
+            height = qMin(height, img.height() - y);
+            
+            // Extract selected region
+            QImage selectedRegion = img.copy(x, y, width, height);
+            
+            // Open zoom window with selected region
+            ZoomWindow *zoomWin = new ZoomWindow(selectedRegion, zoomRatio);
+            zoomWin->setAttribute(Qt::WA_DeleteOnClose);
+            zoomWin->show();
+        }
+        
+        update(); // Clear selection rectangle
+    }
+}
+
+void IP::setZoomRatio()
+{
+    bool ok;
+    double value = QInputDialog::getDouble(this,
+                                           QStringLiteral("設定放大倍率"),
+                                           QStringLiteral("請輸入放大倍率 (0.1 - 10.0):"),
+                                           zoomRatio,
+                                           0.1,
+                                           10.0,
+                                           1,
+                                           &ok);
+    if (ok)
+    {
+        zoomRatio = value;
+        QMessageBox::information(this,
+                                QStringLiteral("設定完成"),
+                                QStringLiteral("放大倍率已設為 ") + QString::number(zoomRatio));
+    }
+}
+
+void IP::paintEvent(QPaintEvent *event)
+{
+    QMainWindow::paintEvent(event);
+    
+    // Draw selection rectangle if selecting
+    if (isSelecting)
+    {
+        QPainter painter(this);
+        painter.setPen(QPen(Qt::blue, 2, Qt::DashLine));
+        
+        int x = qMin(selectionStart.x(), selectionEnd.x());
+        int y = qMin(selectionStart.y(), selectionEnd.y());
+        int width = qAbs(selectionEnd.x() - selectionStart.x());
+        int height = qAbs(selectionEnd.y() - selectionStart.y());
+        
+        painter.drawRect(x, y, width, height);
+    }
 }
